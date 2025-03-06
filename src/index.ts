@@ -199,52 +199,22 @@ insert ${model} {
         return undefined as any;
       },
       findMany: async ({ model, where, sortBy, limit, offset }) => {
-        let query = `SELECT * FROM ${model}`;
-        if (where) {
-          const whereClause = convertWhereClause(where, model);
-          query += ` WHERE ${whereClause}`;
-        }
-        if (sortBy) {
-          query += ` ORDER BY ${getField(model, sortBy.field)} ${sortBy.direction}`;
-        }
-        if (limit !== undefined) {
-          query += ` LIMIT ${limit}`;
-        }
-        if (offset !== undefined) {
-          query += ` START ${offset}`;
-        }
-        const [results] = await db.query<[any[]]>(query);
-        return results.map((record) => transformOutput(record, model));
+        return "unimplemented" as any;
       },
       update: async ({ model, where, update }) => {
-        const whereClause = convertWhereClause(where, model);
-        const transformedUpdate = transformInput(update, model, "update");
-        const [result] = await db.query<[any[]]>(
-          `UPDATE ${model} MERGE ${JSON.stringify(transformedUpdate)} WHERE ${whereClause}`,
-        );
-        return transformOutput(result[0], model);
+        return "unimplemented" as any;
       },
       count: async ({ model, where }) => {
-        return "ww" as any;
+        return "unimplemented" as any;
       },
       delete: async ({ model, where }) => {
-        const whereClause = convertWhereClause(where, model);
-        await db.query(`DELETE FROM ${model} WHERE ${whereClause}`);
+        return "unimplemented" as any;
       },
       deleteMany: async ({ model, where }) => {
-        const whereClause = convertWhereClause(where, model);
-        const [result] = await db.query<[any[]]>(
-          `DELETE FROM ${model} WHERE ${whereClause}`,
-        );
-        return result.length;
+        return 0;
       },
       updateMany: async ({ model, where, update }) => {
-        const whereClause = convertWhereClause(where, model);
-        const transformedUpdate = transformInput(update, model, "update");
-        const [result] = await db.query<[any[]]>(
-          `UPDATE ${model} MERGE ${JSON.stringify(transformedUpdate)} WHERE ${whereClause}`,
-        );
-        return transformOutput(result[0], model);
+        return "unimplemented" as any;
       },
     } satisfies Adapter;
   };
