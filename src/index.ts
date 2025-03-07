@@ -171,6 +171,110 @@ const createTransform = (options: BetterAuthOptions) => {
   };
 };
 
+export function gelAdaptero(db: Client, e: any) {
+  if (!db) {
+    throw new Error("Gel adapter requires a gel client");
+  }
+
+  return (options: BetterAuthOptions = {}): Adapter => {
+    const {
+      transformInput,
+      getSchema,
+      transformOutput,
+      convertWhereClause,
+      getField,
+    } = createTransform(options);
+
+    const adapter: Adapter = {
+      id: "gel",
+
+      async create({ model, data }) {
+        // do i actually need transforminput here? Maybe for filling in dates
+
+        const transformed = transformInput(data, model, "create");
+
+        const insertQuery = e.insert(e[model], transformed);
+        const query = e.select(insertQuery, () => ({
+          ...e[model]["*"],
+        }));
+        const result = await query.run(db);
+        return transformOutput(result, model);
+      },
+
+      async findOne({ model, where, select }) {
+        const query = e.select(e[model], (obj: any) => {
+          if (select) {
+            const selection = Object.fromEntries(
+              select.map((field) => [field, true]),
+            );
+            return {
+              ...selection,
+              filter_single: e.op(1, "=", 1),
+            };
+          }
+
+          if (where[0].field == "id") {
+            return {
+              ...obj["*"],
+              filter_single: e.op(
+                e[model][where[0].field],
+                "=",
+                where[0].value,
+              ),
+            };
+          }
+
+          return {
+            ...e[model]["*"],
+            filter_single: e.op(1, "=", 1),
+          };
+        });
+        const result = await query.run(db);
+        return transformOutput(result, model);
+      },
+
+      async findMany({ model, where, limit, offset, sortBy }) {
+        const query = e.select(e[model], (obj: any) => {
+          return {
+            ...obj["*"],
+          };
+        });
+        const results = await query.run(db);
+        return results.map((record: any) => transformOutput(record, model));
+      },
+
+      async delete({ model, where }) {
+        // e[model][where[0].field],
+        // "=",
+        // where[0].value,
+        const query = e.delete(e[model], () => ({
+          filter_single: { id: where[0].value }, // this is stopid
+        }));
+        const results = await query.run(db);
+        console.log(results);
+      },
+      async deleteMany({ model, where }) {
+        return "unimplemented" as any;
+      },
+
+      async count({ model, where }) {
+        return "unimplemented" as any;
+      },
+
+      async update({ model, where, update }) {
+        return "unimplemented" as any;
+      },
+      async updateMany({ model, where, update }) {
+        return "unimplemented" as any;
+      },
+      // async createSchema(schema) {
+      //   return "unimplemented" as any;
+      // },
+    };
+    return adapter;
+  };
+}
+
 export const gelAdapter =
   (db: Client) => async (options: BetterAuthOptions) => {
     if (!db) {

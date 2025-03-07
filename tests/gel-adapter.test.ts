@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { gelAdapter } from "../src";
+import { gelAdapter, gelAdaptero } from "../src";
 import { runAdapterTest } from "./runAdapterTest";
 import { getTestInstance } from "./testInstance";
 
 import { createClient } from "gel";
 
+import e from "./../dbschema/edgeql-js";
 describe("adapter test", async () => {
   const db = createClient();
 
@@ -18,21 +19,21 @@ describe("adapter test", async () => {
     await setupDB();
   });
 
-  const adapter = gelAdapter(db);
+  const adapter = gelAdaptero(db, e);
   await runAdapterTest({
     getAdapter: async (customOptions = {}) => {
       return adapter({
-        user: {
-          // fields: {
-          //   email: "email_address",
-          // },
-          // additionalFields: {
-          //   test: {
-          //     type: "string",
-          //     defaultValue: "test",
-          //   },
-          // },
-        },
+        // user: {
+        //   // fields: {
+        //   //   email: "email_address",
+        //   // },
+        //   // additionalFields: {
+        //   //   test: {
+        //   //     type: "string",
+        //   //     defaultValue: "test",
+        //   //   },
+        //   // },
+        // },
         // session: {
         //   modelName: "sessions",
         // },

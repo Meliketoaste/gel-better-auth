@@ -11,7 +11,8 @@ import type {
   User,
 } from "better-auth/types";
 
-import { gelAdapter } from "../src/";
+import e from "./../dbschema/edgeql-js";
+import { gelAdapter, gelAdaptero } from "../src/";
 import createClient from "gel";
 
 export async function getTestInstance<
@@ -43,7 +44,7 @@ export async function getTestInstance<
       },
     },
     secret: "better-auth.secret",
-    database: gelAdapter(db),
+    database: gelAdaptero(db, e),
     emailAndPassword: {
       enabled: true,
     },
