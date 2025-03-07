@@ -7,7 +7,7 @@ import { withApplyDefault } from "./utils";
 // import { jsonify, RecordId, Surreal } from "surrealdb";
 // import { withApplyDefault } from "./utils";
 
-import { createClient } from "gel";
+// import { createClient } from "gel";
 
 const edgeDBTypeMap: Record<string, string> = {
   string: "str",
@@ -36,17 +36,36 @@ const createTransform = (options: BetterAuthOptions) => {
     return f.fieldName || field;
   }
 
+  function getType(model: string, type: string) {
+    if (type === "id") {
+      return type;
+    }
+
+    const f = schema[model]?.fields[type];
+
+    if (!f) {
+      throw new Error(`Field "${type}" not found in model "${model}"`);
+    }
+
+    // If the field has a reference and its type is "id", return "id"
+    if (f.references && f.references.field === "id") {
+      return "reference";
+    }
+
+    return f.type;
+  }
+
   function getSchema(modelName: string) {
     if (!schema) {
       throw new BetterAuthError(
-        "Drizzle adapter failed to initialize. Schema not found. Please provide a schema object in the adapter options object.",
+        "Gel adapter failed to initialize. Schema not found. Please provide a schema object in the adapter options object.",
       );
     }
     const model = getModelName(modelName);
     const schemaModel = schema[model];
     if (!schemaModel) {
       throw new BetterAuthError(
-        `[# Drizzle Adapter]: The model "${model}" was not found in the schema object. Please pass the schema directly to the adapter options.`,
+        `[# Gel Adapter]: The model "${model}" was not found in the schema object. Please pass the schema directly to the adapter options.`,
       );
     }
     return schemaModel;
@@ -118,6 +137,7 @@ const createTransform = (options: BetterAuthOptions) => {
         .map((clause) => {
           const { field: _field, value, operator } = clause;
           const field = getField(model, _field);
+          const type = getType(model, _field);
           switch (operator) {
             case "eq":
               return field === "id" || value
@@ -132,9 +152,15 @@ const createTransform = (options: BetterAuthOptions) => {
             case "ends_with":
               return `string::ends_with(${field},'${value}')`;
             default:
+              if (type == "id") {
+                return `.${field} = <uuid>${JSON.stringify(value)}`;
+              }
+              if (type == "reference") {
+                return `.${field}.id = <uuid>${JSON.stringify(value)}`;
+              }
               return field === "id" || value
-                ? `${field} = ${JSON.stringify(value)}`
-                : `${field} = '${JSON.stringify(value)}'`;
+                ? `.${field} = ${JSON.stringify(value)}`
+                : `.${field} = '${JSON.stringify(value)}'`;
           }
         })
         .join(" AND ");
@@ -179,27 +205,37 @@ export const gelAdapter =
           .join(",\n");
 
         const query = `
-insert ${model} {
+select(insert ${model} {
   ${queryFields}
-}`;
+}) {*}`;
 
-        console.log(model, transformed);
         const result = await db.querySingle<any>(query, transformed);
 
         return transformOutput(result, model);
       },
       findOne: async ({ model, where, select = [] }) => {
         const whereClause = convertWhereClause(where, model);
-        const selectClause =
-          (select.length > 0 && select.map((f) => getField(model, f))) || [];
-        const query = `SELECT user`;
-        const result = await db.query<[any[]]>(query);
-        // console.log(result);
-
-        return undefined as any;
+        const selectClause = select.length > 0 ? `${select.join(", ")}` : "*";
+        const query = `select ${model} {${selectClause}} filter ${whereClause} limit 1`; // select
+        const result = await db.querySingle<any>(query);
+        return transformOutput(result, model);
       },
       findMany: async ({ model, where, sortBy, limit, offset }) => {
-        return "unimplemented" as any;
+        const schema = getSchema(model);
+
+        let query = `
+select ${model} {*}
+`;
+
+        if (where) {
+          const whereClause = convertWhereClause(where, model);
+
+          query += ` filter ${whereClause}`;
+        }
+
+        const results = await db.query<any[]>(query);
+
+        return results.map((record) => transformOutput(record, model));
       },
       update: async ({ model, where, update }) => {
         return "unimplemented" as any;
@@ -218,23 +254,23 @@ insert ${model} {
       },
     } satisfies Adapter;
   };
-
-export const gel = createClient({
-  tlsSecurity: "insecure",
-});
-
-export const auth = betterAuth({
-  database: gelAdapter(gel),
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: false,
-  },
-});
-
-auth.api.signUpEmail({
-  body: {
-    name: "john",
-    email: "example@example.com",
-    password: "passworrd",
-  },
-});
+//
+// export const gel = createClient({
+//   tlsSecurity: "insecure",
+// });
+//
+// export const auth = betterAuth({
+//   database: gelAdapter(gel),
+//   emailAndPassword: {
+//     enabled: true,
+//     autoSignIn: false,
+//   },
+// });
+//
+// auth.api.signUpEmail({
+//   body: {
+//     name: "john",
+//     email: "example@example.com",
+//     password: "passworrd",
+//   },
+// });
