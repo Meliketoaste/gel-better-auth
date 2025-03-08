@@ -140,8 +140,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       model: "user",
       where: [
         {
-          field: "id",
-          value: user.id,
+          field: "name",
+          value: user.name,
         },
       ],
     });
@@ -184,7 +184,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         updatedAt: new Date(),
       },
     });
-    await adapter.create({
+
+    const sessiono = await adapter.create({
       model: "session",
       data: {
         token: generateId(),
@@ -194,6 +195,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         expiresAt: new Date(),
       },
     });
+    console.log("<>");
     const res = await adapter.findOne({
       model: "session",
       where: [
@@ -203,6 +205,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         },
       ],
     });
+
+    console.log("</>");
     expect(res).toMatchObject({
       userId: user.id,
     });
@@ -448,3 +452,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     },
   );
 }
+// const baseShape = e.shape(e.Movie, (m) => ({
+//   title: true,
+//   num_actors: e.count(m)
+// }));
+//

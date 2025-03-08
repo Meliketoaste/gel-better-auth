@@ -1,7 +1,7 @@
 import { betterAuth, BetterAuthError, generateId } from "better-auth";
 import { getAuthTables } from "better-auth/db";
 import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
-
+import { type $infer } from "../dbschema/edgeql-js";
 import type { Client } from "gel";
 import { withApplyDefault } from "./utils";
 // import { jsonify, RecordId, Surreal } from "surrealdb";
@@ -53,6 +53,17 @@ const createTransform = (options: BetterAuthOptions) => {
     }
 
     return f.type;
+  }
+  function getSchemaTypes(modelName: string) {
+    if (!schema) {
+      throw new BetterAuthError(
+        "Gel adapter failed to initialize. Schema not found. Please provide a schema object in the adapter options object.",
+      );
+    }
+    const model = getModelName(modelName);
+    const schemaModel = schema[model];
+    // console.log(schemaModel.fields);
+    return schemaModel.fields;
   }
 
   function getSchema(modelName: string) {
@@ -168,6 +179,7 @@ const createTransform = (options: BetterAuthOptions) => {
     transformSelect,
     getField,
     getSchema,
+    getSchemaTypes,
   };
 };
 
@@ -183,60 +195,101 @@ export function gelAdaptero(db: Client, e: any) {
       transformOutput,
       convertWhereClause,
       getField,
+      getSchemaTypes,
     } = createTransform(options);
 
     const adapter: Adapter = {
       id: "gel",
 
       async create({ model, data }) {
-        // do i actually need transforminput here? Maybe for filling in dates
+        const schema = getSchemaTypes(model);
 
-        const transformed = transformInput(data, model, "create");
+        let transformed = transformInput(data, model, "create");
+
+        Object.keys(transformed).forEach((key) => {
+          const field = schema[key];
+
+          if (field?.references) {
+            const refModel = field.references.model;
+
+            transformed[key] = e.select(e[refModel], () => ({
+              filter_single: { id: transformed[key] },
+            }));
+          }
+        });
 
         const insertQuery = e.insert(e[model], transformed);
+
         const query = e.select(insertQuery, () => ({
           ...e[model]["*"],
         }));
+
         const result = await query.run(db);
         return transformOutput(result, model);
       },
 
-      async findOne({ model, where, select }) {
-        const query = e.select(e[model], (obj: any) => {
-          if (select) {
-            const selection = Object.fromEntries(
-              select.map((field) => [field, true]),
-            );
-            return {
-              ...selection,
-              filter_single: e.op(1, "=", 1),
-            };
-          }
+      async findOne({ model, where, select = [] }) {
+        const schema = getSchemaTypes(model);
+        let query;
 
-          if (where[0].field == "id") {
-            return {
-              ...obj["*"],
-              filter_single: e.op(
-                e[model][where[0].field],
+        let selectClause =
+          select.length > 0
+            ? Object.fromEntries(select.map((field) => [field, true]))
+            : e[model]["*"];
+
+        query = e.select(e[model], (obj: any) => {
+          let filterCondition;
+          Object.keys(schema).forEach((key) => {
+            const val = schema[key];
+
+            if (val?.references) {
+              selectClause = {
+                userId: {
+                  id: true,
+                },
+              };
+              filterCondition = e.op(
+                obj.userId.id,
                 "=",
-                where[0].value,
-              ),
-            };
+                e.cast(e.uuid, where[0].value),
+              );
+            }
+          });
+          if (filterCondition == undefined) {
+            filterCondition = e.op(obj[where[0].field], "=", where[0].value);
           }
 
           return {
-            ...e[model]["*"],
-            filter_single: e.op(1, "=", 1),
+            ...selectClause,
+            filter_single: filterCondition,
           };
         });
+
         const result = await query.run(db);
-        return transformOutput(result, model);
+
+        if (model === "session") {
+          if (result.userId && result.userId.id) {
+            // should be handled by transformoutput
+            result.userId = result.userId.id;
+          }
+        }
+
+        return transformOutput(result, model, select);
       },
 
       async findMany({ model, where, limit, offset, sortBy }) {
         const query = e.select(e[model], (obj: any) => {
+          if (where) {
+            return {
+              ...obj["*"],
+              filter: e.op(obj[where[0].field], "=", where[0].value),
+              limit: limit,
+            };
+          }
+
           return {
             ...obj["*"],
+            limit: limit,
           };
         });
         const results = await query.run(db);
@@ -251,7 +304,6 @@ export function gelAdaptero(db: Client, e: any) {
           filter_single: { id: where[0].value }, // this is stopid
         }));
         const results = await query.run(db);
-        console.log(results);
       },
       async deleteMany({ model, where }) {
         return "unimplemented" as any;
