@@ -4,21 +4,17 @@ import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
 import { type $infer } from "../dbschema/edgeql-js";
 import type { Client } from "gel";
 import { withApplyDefault } from "./utils";
-// import { jsonify, RecordId, Surreal } from "surrealdb";
-// import { withApplyDefault } from "./utils";
 
-// import { createClient } from "gel";
-
-const edgeDBTypeMap: Record<string, string> = {
-  string: "str",
-  date: "datetime",
-  boolean: "bool",
-  number: "int64",
-  bigint: "bigint",
-  json: "json",
-  uuid: "uuid",
-  array: "array<anytype>",
-};
+// const edgeDBTypeMap: Record<string, string> = {
+//   string: "str",
+//   date: "datetime",
+//   boolean: "bool",
+//   number: "int64",
+//   bigint: "bigint",
+//   json: "json",
+//   uuid: "uuid",
+//   array: "array<anytype>",
+// };
 
 const createTransform = (options: BetterAuthOptions) => {
   const schema = getAuthTables(options);
