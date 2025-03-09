@@ -62,7 +62,6 @@ const createTransform = (options: BetterAuthOptions) => {
     }
     const model = getModelName(modelName);
     const schemaModel = schema[model];
-    // console.log(schemaModel.fields);
     return schemaModel.fields;
   }
 
@@ -183,7 +182,7 @@ const createTransform = (options: BetterAuthOptions) => {
   };
 };
 
-export function gelAdaptero(db: Client, e: any) {
+export function gelAdapter(db: Client, e: any) {
   if (!db) {
     throw new Error("Gel adapter requires a gel client");
   }
@@ -230,48 +229,49 @@ export function gelAdaptero(db: Client, e: any) {
 
       async findOne({ model, where, select = [] }) {
         const schema = getSchemaTypes(model);
-        let query;
 
         let selectClause =
           select.length > 0
             ? Object.fromEntries(select.map((field) => [field, true]))
             : e[model]["*"];
 
-        query = e.select(e[model], (obj: any) => {
-          let filterCondition;
-          Object.keys(schema).forEach((key) => {
-            const val = schema[key];
+        const referenceField = Object.keys(schema).find(
+          (key) => schema[key]?.references,
+        );
 
-            if (val?.references) {
-              selectClause = {
-                userId: {
-                  id: true,
-                },
-              };
-              filterCondition = e.op(
-                obj.userId.id,
-                "=",
-                e.cast(e.uuid, where[0].value),
-              );
-            }
-          });
-          if (filterCondition == undefined) {
-            filterCondition = e.op(obj[where[0].field], "=", where[0].value);
-          }
+        let query;
 
-          return {
+        if (referenceField) {
+          selectClause = {
             ...selectClause,
-            filter_single: filterCondition,
+            [referenceField]: { id: true },
           };
-        });
+          query = e.params({ userId: e.uuid }, (params: any) =>
+            e.select(e[model], (obj: any) => ({
+              ...selectClause,
+              filter_single: e.op(obj.userId.id, "=", params.userId),
+            })),
+          );
+        } else {
+          const fieldType =
+            typeof where[0].value === "number" ? e.int64 : e.str;
 
-        const result = await query.run(db);
+          query = e.params({ value: fieldType }, (params: any) =>
+            e.select(e[model], (obj: any) => ({
+              ...selectClause,
+              filter_single: e.op(obj[where[0].field], "=", params.value),
+            })),
+          );
+        }
 
-        if (model === "session") {
-          if (result.userId && result.userId.id) {
-            // should be handled by transformoutput
-            result.userId = result.userId.id;
-          }
+        const params = referenceField
+          ? { userId: where[0].value }
+          : { value: where[0].value };
+
+        const result = await query.run(db, params);
+
+        if (referenceField) {
+          result[referenceField] = result[referenceField]?.id;
         }
 
         return transformOutput(result, model, select);
@@ -280,16 +280,34 @@ export function gelAdaptero(db: Client, e: any) {
       async findMany({ model, where, limit, offset, sortBy }) {
         const query = e.select(e[model], (obj: any) => {
           if (where) {
+            const filters = where.map((condition) =>
+              e.op(obj[condition.field], "=", condition.value),
+            );
+
             return {
               ...obj["*"],
-              filter: e.op(obj[where[0].field], "=", where[0].value),
+              filter: e.all(e.set(...filters)),
               limit: limit,
+              offset: offset,
             };
           }
-
+          if (sortBy) {
+            return {
+              ...obj["*"],
+              limit: limit,
+              offset: offset,
+              order_by: sortBy?.field
+                ? {
+                    expression: obj[sortBy.field],
+                    direction: e[sortBy.direction.toUpperCase()],
+                  }
+                : undefined,
+            };
+          }
           return {
             ...obj["*"],
             limit: limit,
+            offset: offset,
           };
         });
         const results = await query.run(db);
@@ -300,10 +318,10 @@ export function gelAdaptero(db: Client, e: any) {
         // e[model][where[0].field],
         // "=",
         // where[0].value,
-        const query = e.delete(e[model], () => ({
-          filter_single: { id: where[0].value }, // this is stopid
-        }));
-        const results = await query.run(db);
+        // const query = e.delete(e[model], () => ({
+        //   filter_single: { id: where[0].value }, // this is stopid
+        // }));
+        // const results = await query.run(db);
       },
       async deleteMany({ model, where }) {
         return "unimplemented" as any;
@@ -327,89 +345,6 @@ export function gelAdaptero(db: Client, e: any) {
   };
 }
 
-export const gelAdapter =
-  (db: Client) => async (options: BetterAuthOptions) => {
-    if (!db) {
-      throw new Error("Gel adapter requires a gel client");
-    }
-
-    const {
-      transformInput,
-      getSchema,
-      transformOutput,
-      convertWhereClause,
-      getField,
-    } = createTransform(options);
-
-    return {
-      id: "gel",
-
-      create: async ({ model, data }) => {
-        const schema = getSchema(model);
-        const transformed = transformInput(data, model, "create");
-        const queryFields = Object.entries(schema.fields)
-          .filter(([fieldName]) => transformed[fieldName] !== undefined)
-          .map(([fieldName, { type, references }]) => {
-            if (references) {
-              return `${fieldName} := (select ${references.model} filter .${references.field} = <uuid>$${fieldName})`;
-            } else {
-              const fieldType =
-                edgeDBTypeMap[type as keyof typeof edgeDBTypeMap] || "str";
-              return `${fieldName} := <${fieldType}>$${fieldName}`;
-            }
-          })
-          .join(",\n");
-
-        const query = `
-select(insert ${model} {
-  ${queryFields}
-}) {*}`;
-
-        const result = await db.querySingle<any>(query, transformed);
-
-        return transformOutput(result, model);
-      },
-      findOne: async ({ model, where, select = [] }) => {
-        const whereClause = convertWhereClause(where, model);
-        const selectClause = select.length > 0 ? `${select.join(", ")}` : "*";
-        const query = `select ${model} {${selectClause}} filter ${whereClause} limit 1`; // select
-        const result = await db.querySingle<any>(query);
-        return transformOutput(result, model);
-      },
-      findMany: async ({ model, where, sortBy, limit, offset }) => {
-        const schema = getSchema(model);
-
-        let query = `
-select ${model} {*}
-`;
-
-        if (where) {
-          const whereClause = convertWhereClause(where, model);
-
-          query += ` filter ${whereClause}`;
-        }
-
-        const results = await db.query<any[]>(query);
-
-        return results.map((record) => transformOutput(record, model));
-      },
-      update: async ({ model, where, update }) => {
-        return "unimplemented" as any;
-      },
-      count: async ({ model, where }) => {
-        return "unimplemented" as any;
-      },
-      delete: async ({ model, where }) => {
-        return "unimplemented" as any;
-      },
-      deleteMany: async ({ model, where }) => {
-        return 0;
-      },
-      updateMany: async ({ model, where, update }) => {
-        return "unimplemented" as any;
-      },
-    } satisfies Adapter;
-  };
 //
 // export const gel = createClient({
 //   tlsSecurity: "insecure",

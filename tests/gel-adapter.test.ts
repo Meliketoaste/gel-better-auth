@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { gelAdapter, gelAdaptero } from "../src";
+import { gelAdapter } from "../src";
 import { runAdapterTest } from "./runAdapterTest";
 import { getTestInstance } from "./testInstance";
 
@@ -19,7 +19,7 @@ describe("adapter test", async () => {
     await setupDB();
   });
 
-  const adapter = gelAdaptero(db, e);
+  const adapter = gelAdapter(db, e);
   await runAdapterTest({
     getAdapter: async (customOptions = {}) => {
       return adapter({

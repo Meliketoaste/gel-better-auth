@@ -148,30 +148,29 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     expect(res.length).toBe(1);
   });
 
-  // test("should find many with operators", async () => {
-  //   const newUser = await adapter.create<User>({
-  //     model: "user",
-  //     data: {
-  //       id: "3",
-  //       name: "user",
-  //       email: "test-email2@email.com",
-  //       emailVerified: true,
-  //       createdAt: new Date(),
-  //       updatedAt: new Date(),
-  //     },
-  //   });
-  //   const res = await adapter.findMany({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         operator: "in",
-  //         value: [user.id, newUser.id],
-  //       },
-  //     ],
-  //   });
-  //   expect(res.length).toBe(2);
-  // });
+  test("should find many with operators", async () => {
+    const newUser = await adapter.create({
+      model: "user",
+      data: {
+        name: "user",
+        email: "test-email2@email.com",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    const res = await adapter.findMany({
+      model: "user",
+      where: [
+        {
+          field: "id",
+          operator: "in",
+          value: [user.email, newUser.email],
+        },
+      ],
+    });
+    expect(res.length).toBe(2);
+  });
 
   test("should work with reference fields", async () => {
     const user = await adapter.create<Record<string, any>>({
@@ -185,7 +184,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       },
     });
 
-    const sessiono = await adapter.create({
+    await adapter.create({
       model: "session",
       data: {
         token: generateId(),
@@ -195,7 +194,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         expiresAt: new Date(),
       },
     });
-    console.log("<>");
     const res = await adapter.findOne({
       model: "session",
       where: [
@@ -205,8 +203,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         },
       ],
     });
-
-    console.log("</>");
     expect(res).toMatchObject({
       userId: user.id,
     });
@@ -452,8 +448,3 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     },
   );
 }
-// const baseShape = e.shape(e.Movie, (m) => ({
-//   title: true,
-//   num_actors: e.count(m)
-// }));
-//
