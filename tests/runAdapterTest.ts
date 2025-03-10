@@ -288,27 +288,27 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     });
   });
 
-  // test("delete model", async () => {
-  //   await adapter.delete({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         value: user.id,
-  //       },
-  //     ],
-  //   });
-  //   const findRes = await adapter.findOne({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         value: user.id,
-  //       },
-  //     ],
-  //   });
-  //   expect(findRes).toBeNull();
-  // });
+  test("delete model", async () => {
+    await adapter.delete({
+      model: "user",
+      where: [
+        {
+          field: "id",
+          value: user.id,
+        },
+      ],
+    });
+    const findRes = await adapter.findOne({
+      model: "user",
+      where: [
+        {
+          field: "id",
+          value: user.id,
+        },
+      ],
+    });
+    expect(findRes).toBeNull();
+  });
 
   test("should delete many", async () => {
     for (const id of ["to-be-delete1", "to-be-delete2", "to-be-delete3"]) {

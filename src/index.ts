@@ -138,38 +138,39 @@ const createTransform = (options: BetterAuthOptions) => {
       }
       return transformedData as any;
     },
-    convertWhereClause(where: Where[], model: string) {
-      return where
-        .map((clause) => {
-          const { field: _field, value, operator } = clause;
-          const field = getField(model, _field);
-          const type = getType(model, _field);
-          switch (operator) {
-            case "eq":
-              return field === "id" || value
-                ? `${field} = ${JSON.stringify(value)}`
-                : `${field} = '${JSON.stringify(value)}'`;
-            case "in":
-              return `${field} IN [${JSON.stringify(value)}]`;
-            case "contains":
-              return `${field} CONTAINS '${JSON.stringify(value)}'`;
-            case "starts_with":
-              return `string::starts_with(${field},'${value}')`;
-            case "ends_with":
-              return `string::ends_with(${field},'${value}')`;
-            default:
-              if (type == "id") {
-                return `.${field} = <uuid>${JSON.stringify(value)}`;
-              }
-              if (type == "reference") {
-                return `.${field}.id = <uuid>${JSON.stringify(value)}`;
-              }
-              return field === "id" || value
-                ? `.${field} = ${JSON.stringify(value)}`
-                : `.${field} = '${JSON.stringify(value)}'`;
-          }
-        })
-        .join(" AND ");
+    convertWhereClause(where: Where[], model: string, e: any) {
+      return where.map((clause) => {
+        const { field: _field, value, operator } = clause;
+        const field = getField(model, _field);
+        const type = getType(model, _field);
+        switch (operator) {
+          case "eq":
+            return e.op(e[model][field].id, "=", e.uuid(value));
+          // return field === "id" || value
+          //   ? `${field} = ${JSON.stringify(value)}`
+          //   : `${field} = '${JSON.stringify(value)}'`;
+          case "in":
+            return `${field} IN [${JSON.stringify(value)}]`;
+          case "contains":
+            return `${field} CONTAINS '${JSON.stringify(value)}'`;
+          case "starts_with":
+            return `string::starts_with(${field},'${value}')`;
+          case "ends_with":
+            return `string::ends_with(${field},'${value}')`;
+          default:
+            if (type == "id") {
+              return e.op(e[model][field], "=", e.uuid(value));
+            }
+            if (type == "reference") {
+              return e.op(e[model][field].id, "=", e.uuid(value));
+            }
+            if (field === "id" || value) {
+              return e.op(e[model][field], "=", value);
+            } else {
+              return e.op(e[model][field], "=", value);
+            }
+        }
+      });
     },
     transformSelect,
     getField,
@@ -196,7 +197,7 @@ export function gelAdapter(db: Client, e: any) {
     const adapter: Adapter = {
       id: "gel",
 
-      async create({ model, data }) {
+      async create({ model, data, select }) {
         const schema = getSchemaTypes(model);
 
         let transformed = transformInput(data, model, "create");
@@ -224,6 +225,7 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async findOne({ model, where, select = [] }) {
+        const whereclause = convertWhereClause(where, model, e);
         const schema = getSchemaTypes(model);
 
         let selectClause =
@@ -235,36 +237,20 @@ export function gelAdapter(db: Client, e: any) {
           (key) => schema[key]?.references,
         );
 
-        let query;
-
         if (referenceField) {
           selectClause = {
             ...selectClause,
-            [referenceField]: { id: true },
+            [referenceField]: { ...e[model][referenceField]["*"] },
           };
-          query = e.params({ userId: e.uuid }, (params: any) =>
-            e.select(e[model], (obj: any) => ({
-              ...selectClause,
-              filter_single: e.op(obj.userId.id, "=", params.userId),
-            })),
-          );
-        } else {
-          const fieldType =
-            typeof where[0].value === "number" ? e.int64 : e.str;
-
-          query = e.params({ value: fieldType }, (params: any) =>
-            e.select(e[model], (obj: any) => ({
-              ...selectClause,
-              filter_single: e.op(obj[where[0].field], "=", params.value),
-            })),
-          );
         }
+        const query = e.select(e[model], (obj: any) => {
+          return {
+            ...selectClause,
+            filter_single: whereclause[0],
+          };
+        });
 
-        const params = referenceField
-          ? { userId: where[0].value }
-          : { value: where[0].value };
-
-        const result = await query.run(db, params);
+        const result = await query.run(db);
 
         if (referenceField) {
           result[referenceField] = result[referenceField]?.id;
