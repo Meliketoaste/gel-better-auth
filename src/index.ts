@@ -370,10 +370,21 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async update({ model, where, update }) {
-        return "unimplemented" as any;
+        const query = e.update(e[model], (obj: any) => {
+          const whereclause = filtero(where, model, e, obj);
+          return {
+            ...obj["*"],
+            filter_single: whereclause[0],
+            set: {
+              ...update,
+            },
+          };
+        });
+        const result = await query.run(db);
+        return transformOutput(result, model);
       },
       async updateMany({ model, where, update }) {
-        return "unimplemented" as any;
+        return "" as any;
       },
       // async createSchema(schema) {
       //   return "unimplemented" as any;
