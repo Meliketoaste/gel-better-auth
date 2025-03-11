@@ -384,7 +384,18 @@ export function gelAdapter(db: Client, e: any) {
         return transformOutput(result, model);
       },
       async updateMany({ model, where, update }) {
-        return "" as any;
+        const query = e.update(e[model], (obj: any) => {
+          const whereclause = filtero(where, model, e, obj);
+          return {
+            ...obj["*"],
+            filter: whereclause[0],
+            set: {
+              ...update,
+            },
+          };
+        });
+        const result = await query.run(db);
+        return transformOutput(result, model);
       },
       // async createSchema(schema) {
       //   return "unimplemented" as any;
