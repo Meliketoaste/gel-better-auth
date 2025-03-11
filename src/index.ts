@@ -146,9 +146,6 @@ const createTransform = (options: BetterAuthOptions) => {
         switch (operator) {
           case "eq":
             return e.op(e[model][field].id, "=", value);
-          // return field === "id" || value
-          //   ? `${field} = ${JSON.stringify(value)}`
-          //   : `${field} = '${JSON.stringify(value)}'`;
           case "in":
             if (type === "id") {
               return e.op(e[model][field], "in", e.uuid(value));
@@ -190,9 +187,6 @@ const createTransform = (options: BetterAuthOptions) => {
         switch (operator) {
           case "eq":
             return e.op(obj.id, "=", value);
-          // return field === "id" || value
-          //   ? `${field} = ${JSON.stringify(value)}`
-          //   : `${field} = '${JSON.stringify(value)}'`;
           case "in":
             if (type === "id") {
               return e.op(obj[field], "in", e.uuid(value));
@@ -204,13 +198,23 @@ const createTransform = (options: BetterAuthOptions) => {
                 e.array_unpack(e.literal(e.array(e.str), value)),
               );
             }
-            return e.op(obj[field].id, "in", value);
+            return e.op(obj[field], "in", value);
           case "contains":
-            return `${field} CONTAINS '${JSON.stringify(value)}'`;
+            if (type === "id") {
+              return e.op(obj[field], "ilike", e.uuid(value));
+            }
+            if (Array.isArray(value)) {
+              return e.op(
+                obj[field],
+                "ilike",
+                e.array_unpack(e.literal(e.array(e.str), value)),
+              );
+            }
+            return e.op(obj[field], "ilike", value);
           case "starts_with":
-            return `string::starts_with(${field},'${value}')`;
+            return e.op(obj[field], "ilike", `${value}%`);
           case "ends_with":
-            return `string::ends_with(${field},'${value}')`;
+            return e.op(obj[field], "ilike", `%${value}`);
           default:
             if (type == "id") {
               return e.op(obj.id, "=", e.uuid(value));
@@ -338,13 +342,15 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async delete({ model, where }) {
-        // e[model][where[0].field],
-        // "=",
-        // where[0].value,
-        // const query = e.delete(e[model], () => ({
-        //   filter_single: { id: where[0].value }, // this is stopid
-        // }));
-        // const results = await query.run(db);
+        const query = e.delete(e[model], (obj: any) => {
+          const whereclause = filtero(where, model, e, obj);
+          return {
+            ...obj["*"],
+            filter_single: where ? whereclause[0] : undefined,
+          };
+        });
+        const results = await query.run(db);
+        return transformOutput(results, model);
       },
       async deleteMany({ model, where }) {
         return "unimplemented" as any;

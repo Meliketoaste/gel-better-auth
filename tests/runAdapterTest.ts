@@ -8,6 +8,7 @@ interface AdapterTestOptions {
   skipGenerateIdTest?: boolean;
 }
 
+let woah: any = "e";
 export async function runAdapterTest(opts: AdapterTestOptions) {
   const adapter = await opts.getAdapter();
   //
@@ -19,7 +20,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
   //   updatedAt: new Date(),
   // };
   //
-  const user = {
+  let user: any = {
     id: undefined,
     name: "user",
     email: "user@email.com",
@@ -33,6 +34,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       model: "user",
       data: user,
     });
+    woah = res.id;
+    console.log("s1", woah);
 
     expect({
       name: res.name,
@@ -45,6 +48,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
   });
 
   test("find model", async () => {
+    console.log("s1", woah);
     const res = await adapter.findOne<User>({
       model: "user",
       where: [
@@ -288,27 +292,27 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     });
   });
 
-  // test("delete model", async () => {
-  //   await adapter.delete({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         value: user.id,
-  //       },
-  //     ],
-  //   });
-  //   const findRes = await adapter.findOne({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         value: user.id,
-  //       },
-  //     ],
-  //   });
-  //   expect(findRes).toBeNull();
-  // });
+  test("delete model", async () => {
+    await adapter.delete({
+      model: "user",
+      where: [
+        {
+          field: "email",
+          value: "user@email.com",
+        },
+      ],
+    });
+    const findRes = await adapter.findOne({
+      model: "user",
+      where: [
+        {
+          field: "email",
+          value: "user@email.com",
+        },
+      ],
+    });
+    expect(findRes).toBeNull();
+  });
 
   test("should delete many", async () => {
     for (const id of ["to-be-delete1", "to-be-delete2", "to-be-delete3"]) {
