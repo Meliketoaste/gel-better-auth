@@ -353,7 +353,16 @@ export function gelAdapter(db: Client, e: any) {
         return transformOutput(results, model);
       },
       async deleteMany({ model, where }) {
-        return "unimplemented" as any;
+        const query = e.delete(e[model], (obj: any) => {
+          const whereclause = filtero(where ?? [], model, e, obj);
+          return {
+            ...obj["*"],
+            filter: where ? whereclause[0] : undefined,
+          };
+        });
+        const results = await query.run(db);
+
+        return results.map((record: any) => transformOutput(record, model));
       },
 
       async count({ model, where }) {
