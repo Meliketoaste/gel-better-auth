@@ -85,9 +85,9 @@ export async function getTestInstance<
   await createTestUser();
 
   afterAll(async () => {
-    await db.execute("delete session;");
-    await db.execute("delete account;");
-    await db.execute("delete user;");
+    // await db.execute("delete session;");
+    // await db.execute("delete account;");
+    // await db.execute("delete user;");
   });
 
   async function signInWithTestUser() {

@@ -145,12 +145,22 @@ const createTransform = (options: BetterAuthOptions) => {
         const type = getType(model, _field);
         switch (operator) {
           case "eq":
-            return e.op(e[model][field].id, "=", e.uuid(value));
+            return e.op(e[model][field].id, "=", value);
           // return field === "id" || value
           //   ? `${field} = ${JSON.stringify(value)}`
           //   : `${field} = '${JSON.stringify(value)}'`;
           case "in":
-            return `${field} IN [${JSON.stringify(value)}]`;
+            if (type === "id") {
+              return e.op(e[model][field], "in", e.uuid(value));
+            }
+            if (Array.isArray(value)) {
+              return (
+                e[model][field],
+                "in",
+                e.array_unpack(e.literal(e.array(e.str), value))
+              );
+            }
+            return e.op(e[model][field].id, "in", value);
           case "contains":
             return `${field} CONTAINS '${JSON.stringify(value)}'`;
           case "starts_with":
@@ -159,15 +169,59 @@ const createTransform = (options: BetterAuthOptions) => {
             return `string::ends_with(${field},'${value}')`;
           default:
             if (type == "id") {
-              return e.op(e[model][field], "=", e.uuid(value));
+              return e.op(e[model].id, "=", e.uuid(value));
             }
             if (type == "reference") {
               return e.op(e[model][field].id, "=", e.uuid(value));
             }
-            if (field === "id" || value) {
+            if (value) {
               return e.op(e[model][field], "=", value);
             } else {
               return e.op(e[model][field], "=", value);
+            }
+        }
+      });
+    },
+    filtero(where: Where[], model: string, e: any, obj: any) {
+      return where.map((clause) => {
+        const { field: _field, value, operator } = clause;
+        const field = getField(model, _field);
+        const type = getType(model, _field);
+        switch (operator) {
+          case "eq":
+            return e.op(obj.id, "=", value);
+          // return field === "id" || value
+          //   ? `${field} = ${JSON.stringify(value)}`
+          //   : `${field} = '${JSON.stringify(value)}'`;
+          case "in":
+            if (type === "id") {
+              return e.op(obj[field], "in", e.uuid(value));
+            }
+            if (Array.isArray(value)) {
+              return e.op(
+                obj[field],
+                "in",
+                e.array_unpack(e.literal(e.array(e.str), value)),
+              );
+            }
+            return e.op(obj[field].id, "in", value);
+          case "contains":
+            return `${field} CONTAINS '${JSON.stringify(value)}'`;
+          case "starts_with":
+            return `string::starts_with(${field},'${value}')`;
+          case "ends_with":
+            return `string::ends_with(${field},'${value}')`;
+          default:
+            if (type == "id") {
+              return e.op(obj.id, "=", e.uuid(value));
+            }
+            if (type == "reference") {
+              return e.op(obj[field].id, "=", e.uuid(value));
+            }
+            if (value) {
+              return e.op(obj[field], "=", value);
+            } else {
+              return e.op(obj[field], "=", value);
             }
         }
       });
@@ -191,6 +245,7 @@ export function gelAdapter(db: Client, e: any) {
       transformOutput,
       convertWhereClause,
       getField,
+      filtero,
       getSchemaTypes,
     } = createTransform(options);
 
@@ -225,6 +280,7 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async findOne({ model, where, select = [] }) {
+        // TODO: refactor convertWhereClause, obj
         const whereclause = convertWhereClause(where, model, e);
         const schema = getSchemaTypes(model);
 
@@ -261,38 +317,23 @@ export function gelAdapter(db: Client, e: any) {
 
       async findMany({ model, where, limit, offset, sortBy }) {
         const query = e.select(e[model], (obj: any) => {
-          if (where) {
-            const filters = where.map((condition) =>
-              e.op(obj[condition.field], "=", condition.value),
-            );
-
-            return {
-              ...obj["*"],
-              filter: e.all(e.set(...filters)),
-              limit: limit,
-              offset: offset,
-            };
-          }
-          if (sortBy) {
-            return {
-              ...obj["*"],
-              limit: limit,
-              offset: offset,
-              order_by: sortBy?.field
-                ? {
-                    expression: obj[sortBy.field],
-                    direction: e[sortBy.direction.toUpperCase()],
-                  }
-                : undefined,
-            };
-          }
+          const whereclause = filtero(where ?? [], model, e, obj);
           return {
             ...obj["*"],
             limit: limit,
             offset: offset,
+            filter: where ? whereclause[0] : undefined,
+
+            order_by: sortBy?.field
+              ? {
+                  expression: obj[sortBy.field],
+                  direction: e[sortBy.direction.toUpperCase()],
+                }
+              : undefined,
           };
         });
         const results = await query.run(db);
+
         return results.map((record: any) => transformOutput(record, model));
       },
 
