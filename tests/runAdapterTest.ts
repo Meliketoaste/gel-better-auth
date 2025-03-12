@@ -11,15 +11,7 @@ interface AdapterTestOptions {
 let woah: any = "e";
 export async function runAdapterTest(opts: AdapterTestOptions) {
   const adapter = await opts.getAdapter();
-  //
-  // const userwithid = {
-  //   name: "user",
-  //   email: "user@email.com",
-  //   emailVerified: true,
-  //   createdAt: new Date(),
-  //   updatedAt: new Date(),
-  // };
-  //
+
   let user: any = {
     id: undefined,
     name: "user",

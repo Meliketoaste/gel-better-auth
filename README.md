@@ -14,3 +14,20 @@ TODO:
 - Error handling.
 - Test refactor
 - Schema gen
+
+## Installation
+
+Can't really, yet
+
+## Usage
+
+```ts
+import e from "./../dbschema/edgeql-js";
+import { client } from './your-gel-client'
+
+...
+export const auth = betterAuth({
+...
+database: gelAdapter(client, e)
+...
+```
