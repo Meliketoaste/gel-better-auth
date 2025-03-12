@@ -138,48 +138,7 @@ const createTransform = (options: BetterAuthOptions) => {
       }
       return transformedData as any;
     },
-    convertWhereClause(where: Where[], model: string, e: any) {
-      return where.map((clause) => {
-        const { field: _field, value, operator } = clause;
-        const field = getField(model, _field);
-        const type = getType(model, _field);
-        switch (operator) {
-          case "eq":
-            return e.op(e[model][field].id, "=", value);
-          case "in":
-            if (type === "id") {
-              return e.op(e[model][field], "in", e.uuid(value));
-            }
-            if (Array.isArray(value)) {
-              return (
-                e[model][field],
-                "in",
-                e.array_unpack(e.literal(e.array(e.str), value))
-              );
-            }
-            return e.op(e[model][field].id, "in", value);
-          case "contains":
-            return `${field} CONTAINS '${JSON.stringify(value)}'`;
-          case "starts_with":
-            return `string::starts_with(${field},'${value}')`;
-          case "ends_with":
-            return `string::ends_with(${field},'${value}')`;
-          default:
-            if (type == "id") {
-              return e.op(e[model].id, "=", e.uuid(value));
-            }
-            if (type == "reference") {
-              return e.op(e[model][field].id, "=", e.uuid(value));
-            }
-            if (value) {
-              return e.op(e[model][field], "=", value);
-            } else {
-              return e.op(e[model][field], "=", value);
-            }
-        }
-      });
-    },
-    filtero(where: Where[], model: string, e: any, obj: any) {
+    convertWhereClause(where: Where[], model: string, e: any, obj: any) {
       return where.map((clause) => {
         const { field: _field, value, operator } = clause;
         const field = getField(model, _field);
@@ -247,9 +206,8 @@ export function gelAdapter(db: Client, e: any) {
       transformInput,
       getSchema,
       transformOutput,
-      convertWhereClause,
       getField,
-      filtero,
+      convertWhereClause,
       getSchemaTypes,
     } = createTransform(options);
 
@@ -302,7 +260,7 @@ export function gelAdapter(db: Client, e: any) {
           };
         }
         const query = e.select(e[model], (obj: any) => {
-          const whereclause = filtero(where ?? [], model, e, obj);
+          const whereclause = convertWhereClause(where ?? [], model, e, obj);
           return {
             ...selectClause,
             filter_single: where ? whereclause[0] : undefined,
@@ -320,7 +278,7 @@ export function gelAdapter(db: Client, e: any) {
 
       async findMany({ model, where, limit, offset, sortBy }) {
         const query = e.select(e[model], (obj: any) => {
-          const whereclause = filtero(where ?? [], model, e, obj);
+          const whereclause = convertWhereClause(where ?? [], model, e, obj);
           return {
             ...obj["*"],
             limit: limit,
@@ -342,7 +300,7 @@ export function gelAdapter(db: Client, e: any) {
 
       async delete({ model, where }) {
         const query = e.delete(e[model], (obj: any) => {
-          const whereclause = filtero(where, model, e, obj);
+          const whereclause = convertWhereClause(where, model, e, obj);
           return {
             ...obj["*"],
             filter_single: where ? whereclause[0] : undefined,
@@ -353,7 +311,7 @@ export function gelAdapter(db: Client, e: any) {
       },
       async deleteMany({ model, where }) {
         const query = e.delete(e[model], (obj: any) => {
-          const whereclause = filtero(where ?? [], model, e, obj);
+          const whereclause = convertWhereClause(where ?? [], model, e, obj);
           return {
             ...obj["*"],
             filter: where ? whereclause[0] : undefined,
@@ -371,7 +329,7 @@ export function gelAdapter(db: Client, e: any) {
       async update({ model, where, update }) {
         const query = e.select(
           e.update(e[model], (obj: any) => {
-            const whereclause = filtero(where, model, e, obj);
+            const whereclause = convertWhereClause(where, model, e, obj);
             return {
               filter_single: where ? whereclause[0] : undefined,
               set: update,
@@ -386,7 +344,7 @@ export function gelAdapter(db: Client, e: any) {
       },
       async updateMany({ model, where, update }) {
         const query = e.update(e[model], (obj: any) => {
-          const whereclause = filtero(where, model, e, obj);
+          const whereclause = convertWhereClause(where, model, e, obj);
           return {
             filter: e.op(whereclause[0], "and", whereclause[1]),
             set: update,

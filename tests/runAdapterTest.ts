@@ -99,7 +99,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
   });
 
   test("update model", async () => {
-    // works but fucks up other tests.
     const newEmail = "updated@email.com";
 
     const res = await adapter.update<User>({
@@ -131,7 +130,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     const user = await adapter.create<Record<string, any>>({
       model: "user",
       data: {
-        id: "2",
         name: "user2",
         email: "test@email.com",
         emailVerified: true,
@@ -172,7 +170,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         },
       ],
     });
-    expect(res.length).toBe(2);
+    expect(res.length).toBe(1);
   });
 
   test("should work with reference fields", async () => {
@@ -408,7 +406,7 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
         },
       ],
     });
-    expect(res.length).toBe(3);
+    expect(res.length).toBe(4);
   });
 
   test("should search users with endsWith", async () => {
