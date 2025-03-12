@@ -11,7 +11,6 @@ TODO:
 
 - Implement missing stuff,
 - Add missing operators.
-- Error handling.
 - Test refactor
 - Schema gen
 
