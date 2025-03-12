@@ -1,7 +1,6 @@
-import { betterAuth, BetterAuthError, generateId } from "better-auth";
+import { BetterAuthError } from "better-auth";
 import { getAuthTables } from "better-auth/db";
 import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
-import { type $infer } from "../dbschema/edgeql-js";
 import type { Client } from "gel";
 import { withApplyDefault } from "./utils";
 
