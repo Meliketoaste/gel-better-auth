@@ -2,8 +2,8 @@
 
 ## Status
 
-Might work:
-Passing essentially all the tests, except avoiding to throw on error.
+Probably will work for "some amount" of things:
+Passing all the test.
 
 Tests might be lacking in rigor. Since the main tests assumes you can change set id i had to change some stuff.
 
