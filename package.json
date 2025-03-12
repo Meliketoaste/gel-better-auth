@@ -1,7 +1,32 @@
 {
   "name": "gel-better-auth",
+  "version": "0.0.1",
+  "author": "Emil Nordgård",
+  "description": "An better-auth database adapter for gel/edgedb",
+  "keywords": [
+    "adapter",
+    "auth",
+    "authentication",
+    "database",
+    "better-auth",
+    "better-auth-adapter",
+    "gel",
+    "edgedb",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Meliketoaste/gel-better-auth.git"
+  },
+  "license": "MIT",
+  "main": "src/index.ts",
+  "files": [
+    "src/index.ts",
+    "src/utils.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "module": "src/index.ts",
-  "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
   },
