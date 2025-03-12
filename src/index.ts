@@ -5,17 +5,6 @@ import { type $infer } from "../dbschema/edgeql-js";
 import type { Client } from "gel";
 import { withApplyDefault } from "./utils";
 
-// const edgeDBTypeMap: Record<string, string> = {
-//   string: "str",
-//   date: "datetime",
-//   boolean: "bool",
-//   number: "int64",
-//   bigint: "bigint",
-//   json: "json",
-//   uuid: "uuid",
-//   array: "array<anytype>",
-// };
-
 const createTransform = (options: BetterAuthOptions) => {
   const schema = getAuthTables(options);
 
