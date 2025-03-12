@@ -361,8 +361,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       model: "user",
       where: [
         {
-          field: "id",
-          value: "5",
+          field: "name",
+          value: "thisrecorddoesnotexist",
         },
       ],
     });
@@ -373,8 +373,8 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       model: "user",
       where: [
         {
-          field: "id",
-          value: "5",
+          field: "name",
+          value: "thisrecorddoesnotexist",
         },
       ],
     });
