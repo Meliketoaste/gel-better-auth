@@ -1,6 +1,6 @@
 {
   "name": "gel-better-auth",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Emil Nordgård",
   "description": "An better-auth database adapter for gel/edgedb",
   "keywords": [

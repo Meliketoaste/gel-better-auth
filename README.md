@@ -16,7 +16,7 @@ TODO:
 
 ## Installation
 
-Can't really, yet
+Package exists now https://npmjs.com/package/gel-better-auth
 
 ## Usage
 
