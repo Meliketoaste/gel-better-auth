@@ -35,7 +35,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
       data: user,
     });
     woah = res.id;
-    console.log("s1", woah);
 
     expect({
       name: res.name,
@@ -48,7 +47,6 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
   });
 
   test("find model", async () => {
-    console.log("s1", woah);
     const res = await adapter.findOne<User>({
       model: "user",
       where: [
@@ -100,26 +98,27 @@ export async function runAdapterTest(opts: AdapterTestOptions) {
     expect(res).toEqual({ email: user.email });
   });
 
-  // test("update model", async () => {
-  //   const newEmail = "updated@email.com";
-  //
-  //   const res = await adapter.update<User>({
-  //     model: "user",
-  //     where: [
-  //       {
-  //         field: "id",
-  //         value: user.id,
-  //       },
-  //     ],
-  //     update: {
-  //       email: newEmail,
-  //     },
-  //   });
-  //   expect(res).toMatchObject({
-  //     email: newEmail,
-  //     name: user.name,
-  //   });
-  // });
+  test("update model", async () => {
+    // works but fucks up other tests.
+    const newEmail = "updated@email.com";
+
+    const res = await adapter.update<User>({
+      model: "user",
+      where: [
+        {
+          field: "email",
+          value: user.email,
+        },
+      ],
+      update: {
+        email: newEmail,
+      },
+    });
+    expect(res).toMatchObject({
+      email: newEmail,
+      name: user.name,
+    });
+  });
 
   test("should find many", async () => {
     const res = await adapter.findMany({

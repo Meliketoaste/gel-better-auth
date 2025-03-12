@@ -284,8 +284,6 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async findOne({ model, where, select = [] }) {
-        // TODO: refactor convertWhereClause, obj
-        const whereclause = convertWhereClause(where, model, e);
         const schema = getSchemaTypes(model);
 
         let selectClause =
@@ -304,9 +302,10 @@ export function gelAdapter(db: Client, e: any) {
           };
         }
         const query = e.select(e[model], (obj: any) => {
+          const whereclause = filtero(where ?? [], model, e, obj);
           return {
             ...selectClause,
-            filter_single: whereclause[0],
+            filter_single: where ? whereclause[0] : undefined,
           };
         });
 
@@ -370,16 +369,18 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async update({ model, where, update }) {
-        const query = e.update(e[model], (obj: any) => {
-          const whereclause = filtero(where, model, e, obj);
-          return {
+        const query = e.select(
+          e.update(e[model], (obj: any) => {
+            const whereclause = filtero(where, model, e, obj);
+            return {
+              filter_single: where ? whereclause[0] : undefined,
+              set: update,
+            };
+          }),
+          (obj: any) => ({
             ...obj["*"],
-            filter_single: whereclause[0],
-            set: {
-              ...update,
-            },
-          };
-        });
+          }),
+        );
         const result = await query.run(db);
         return transformOutput(result, model);
       },
@@ -387,11 +388,8 @@ export function gelAdapter(db: Client, e: any) {
         const query = e.update(e[model], (obj: any) => {
           const whereclause = filtero(where, model, e, obj);
           return {
-            ...obj["*"],
-            filter: whereclause[0],
-            set: {
-              ...update,
-            },
+            filter: e.op(whereclause[0], "and", whereclause[1]),
+            set: update,
           };
         });
         const result = await query.run(db);
@@ -404,24 +402,3 @@ export function gelAdapter(db: Client, e: any) {
     return adapter;
   };
 }
-
-//
-// export const gel = createClient({
-//   tlsSecurity: "insecure",
-// });
-//
-// export const auth = betterAuth({
-//   database: gelAdapter(gel),
-//   emailAndPassword: {
-//     enabled: true,
-//     autoSignIn: false,
-//   },
-// });
-//
-// auth.api.signUpEmail({
-//   body: {
-//     name: "john",
-//     email: "example@example.com",
-//     password: "passworrd",
-//   },
-// });
