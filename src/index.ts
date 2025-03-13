@@ -311,7 +311,18 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async count({ model, where }) {
-        return "unimplemented" as any;
+        const query = e.count(
+          e.select(e.user, (obj: any) => {
+            const whereclause = convertWhereClause(where ?? [], model, e, obj);
+            return {
+              filter: where ? whereclause[0] : undefined,
+            };
+          }),
+        );
+
+        const results = await query.run(db);
+
+        return results;
       },
 
       async update({ model, where, update }) {
