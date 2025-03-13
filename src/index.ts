@@ -352,9 +352,37 @@ export function gelAdapter(db: Client, e: any) {
         const result = await query.run(db);
         return transformOutput(result, model);
       },
-      // async createSchema(schema) {
-      //   return "unimplemented" as any;
-      // },
+      async createSchema(options: BetterAuthOptions, file?: string) {
+        const schema = getAuthTables(options);
+        const typeMap: Record<string, string> = {
+          string: "str",
+          number: "int",
+          boolean: "bool",
+          date: "datetime",
+        };
+
+        const mapField = ([fieldName, { type, required, references }]: [
+          string,
+          any,
+        ]) => {
+          const fieldType = Array.isArray(type)
+            ? `array<${typeMap[type[0]]}>`
+            : typeMap[type];
+          return `  ${required ? "required " : ""}${fieldName}: ${references?.model || fieldType};`;
+        };
+
+        const schemaString = Object.values(schema)
+          .map(({ modelName, fields }) => {
+            const fieldsString = Object.entries(fields)
+              .map(mapField)
+              .join("\n");
+            return `type ${modelName} {\n${fieldsString}\n}`;
+          })
+          .join("\n\n");
+
+        console.log(schemaString);
+        return "unimplemented" as any;
+      },
     };
     return adapter;
   };
