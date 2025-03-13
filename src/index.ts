@@ -353,7 +353,6 @@ export function gelAdapter(db: Client, e: any) {
         return transformOutput(result, model);
       },
       async createSchema(options: BetterAuthOptions, file?: string) {
-        const schema = getAuthTables(options);
         const typeMap: Record<string, string> = {
           string: "str",
           number: "int",
@@ -361,20 +360,15 @@ export function gelAdapter(db: Client, e: any) {
           date: "datetime",
         };
 
-        const mapField = ([fieldName, { type, required, references }]: [
-          string,
-          any,
-        ]) => {
-          const fieldType = Array.isArray(type)
-            ? `array<${typeMap[type[0]]}>`
-            : typeMap[type];
-          return `  ${required ? "required " : ""}${fieldName}: ${references?.model || fieldType};`;
-        };
-
-        const schemaString = Object.values(schema)
+        const schemaString = Object.values(getAuthTables(options))
           .map(({ modelName, fields }) => {
             const fieldsString = Object.entries(fields)
-              .map(mapField)
+              .map(([fieldName, { type, required, references }]) => {
+                const fieldType = Array.isArray(type)
+                  ? `array<${typeMap[type[0]]}>`
+                  : typeMap[type];
+                return `  ${required ? "required " : ""}${fieldName}: ${references?.model || fieldType};`;
+              })
               .join("\n");
             return `type ${modelName} {\n${fieldsString}\n}`;
           })
