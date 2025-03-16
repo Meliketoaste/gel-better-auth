@@ -73,6 +73,7 @@ describe("simple-flow", async () => {
   });
 
   it("should get session", async () => {
+    // db.createSchema(auth.options);
     const headers = new Headers();
     await client.signIn.email(
       {

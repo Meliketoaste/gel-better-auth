@@ -3,6 +3,8 @@ import { getAuthTables } from "better-auth/db";
 import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
 import type { Client } from "gel";
 import { withApplyDefault } from "./utils";
+import { writeFile } from "fs/promises";
+import { join } from "path";
 
 const createTransform = (options: BetterAuthOptions) => {
   const schema = getAuthTables(options);
@@ -352,7 +354,11 @@ export function gelAdapter(db: Client, e: any) {
         const result = await query.run(db);
         return transformOutput(result, model);
       },
-      async createSchema(options: BetterAuthOptions, file?: string) {
+
+      async createSchema(
+        options: BetterAuthOptions,
+        file: string = "./dbschema/generated.esdl",
+      ) {
         const typeMap: Record<string, string> = {
           string: "str",
           number: "int",
@@ -374,8 +380,19 @@ export function gelAdapter(db: Client, e: any) {
           })
           .join("\n\n");
 
-        console.log(schemaString);
-        return "unimplemented" as any;
+        const filePath = join(process.cwd(), file);
+
+        if (typeof Bun !== "undefined") {
+          await Bun.write(filePath, schemaString);
+        } else {
+          await writeFile(filePath, schemaString);
+        }
+
+        return {
+          code: schemaString,
+          path: filePath,
+          overwrite: true,
+        };
       },
     };
     return adapter;
