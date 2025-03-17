@@ -2,17 +2,15 @@
 
 ## Status
 
-Probably will work for "some amount" of things:
+Will probably work, keep in mind it's early.
 Passing all the test.
 
-Tests might be lacking in rigor. Since the main tests assumes you can change set id i had to change some stuff.
+Got schema gen working.
 
 TODO:
 
-- Implement missing stuff,
-- Add missing operators.
-- Test refactor
-- Schema gen
+- Proof tests
+- general refactor
 
 ## Installation
 
@@ -29,4 +27,12 @@ export const auth = betterAuth({
 ...
 database: gelAdapter(client, e)
 ...
+});
+
+// to generate schema
+const opts = auth.options;
+const dbopts = opts.database(opts);
+if (dbopts.createSchema) {
+  dbopts.createSchema(opts);
+}
 ```
