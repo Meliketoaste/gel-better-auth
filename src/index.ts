@@ -22,21 +22,23 @@ const createTransform = (options: BetterAuthOptions) => {
     data: Record<string, any>,
     model: string,
     action: "update" | "create",
-  ) =>
-    Object.keys(schema[model].fields).reduce(
-      (acc, field) => {
-        const value = data[field];
-        if (value === undefined && !schema[model].fields[field].defaultValue)
-          return acc;
-        acc[schema[model].fields[field].fieldName || field] = withApplyDefault(
-          value,
-          schema[model].fields[field],
-          action,
-        );
-        return acc;
-      },
-      {} as Record<string, any>,
-    );
+  ) => {
+    const transformedData: Record<string, any> = {};
+    const fields = schema[model].fields;
+
+    for (const field in fields) {
+      const value = data[field];
+      if (value === undefined && !fields[field].defaultValue) {
+        continue;
+      }
+      transformedData[fields[field].fieldName || field] = withApplyDefault(
+        value,
+        fields[field],
+        action,
+      );
+    }
+    return transformedData;
+  };
 
   const transformOutput = (
     data: Record<string, any>,
