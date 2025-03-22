@@ -5,12 +5,9 @@
 Will probably work, keep in mind it's early.
 Passing all the test.
 
-Got schema gen working.
-
 TODO:
 
-- Proof tests
-- general refactor
+- Try it out to see if plugins, and API's will work as intended.
 
 ## Installation
 
