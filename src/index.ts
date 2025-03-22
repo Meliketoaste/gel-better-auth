@@ -1,4 +1,3 @@
-import { BetterAuthError } from "better-auth";
 import { getAuthTables } from "better-auth/db";
 import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
 import type { Client } from "gel";
@@ -9,340 +8,237 @@ import { join } from "path";
 const createTransform = (options: BetterAuthOptions) => {
   const schema = getAuthTables(options);
 
-  function transformSelect(select: string[], model: string): string[] {
-    if (!select || select.length === 0) return [];
-    return select.map((field) => getField(model, field));
-  }
+  const getField = (model: string, field: string) =>
+    field === "id" ? field : (schema[model]?.fields[field]?.fieldName ?? field);
 
-  function getField(model: string, field: string) {
-    if (field === "id") {
-      return field;
-    }
-    const f = schema[model].fields[field];
-    return f.fieldName || field;
-  }
-
-  function getType(model: string, type: string) {
-    if (type === "id") {
-      return type;
-    }
-
-    const f = schema[model]?.fields[type];
-
-    if (!f) {
-      throw new Error(`Field "${type}" not found in model "${model}"`);
-    }
-
-    // If the field has a reference and its type is "id", return "id"
-    if (f.references && f.references.field === "id") {
-      return "reference";
-    }
-
-    return f.type;
-  }
-  function getSchemaTypes(modelName: string) {
-    if (!schema) {
-      throw new BetterAuthError(
-        "Gel adapter failed to initialize. Schema not found. Please provide a schema object in the adapter options object.",
-      );
-    }
-    const model = getModelName(modelName);
-    const schemaModel = schema[model];
-    return schemaModel.fields;
-  }
-
-  function getSchema(modelName: string) {
-    if (!schema) {
-      throw new BetterAuthError(
-        "Gel adapter failed to initialize. Schema not found. Please provide a schema object in the adapter options object.",
-      );
-    }
-    const model = getModelName(modelName);
-    const schemaModel = schema[model];
-    if (!schemaModel) {
-      throw new BetterAuthError(
-        `[# Gel Adapter]: The model "${model}" was not found in the schema object. Please pass the schema directly to the adapter options.`,
-      );
-    }
-    return schemaModel;
-  }
-
-  const getModelName = (model: string) => {
-    return schema[model].modelName !== model
-      ? schema[model].modelName
-      : false
-        ? `${model}s`
-        : model;
+  const getType = (model: string, field: string) => {
+    if (field === "id") return "id";
+    const f = schema[model]?.fields[field];
+    if (!f) throw new Error(`Field "${field}" not found in model "${model}"`);
+    return f.references?.field === "id" ? "reference" : f.type;
   };
 
-  return {
-    transformInput(
-      data: Record<string, any>,
-      model: string,
-      action: "update" | "create",
-    ) {
-      const transformedData: Record<string, any> =
-        action === "update"
-          ? {}
-          : {
-              // id: options.advanced?.generateId // Edgedb Id's have to be generated.
-              //   ? options.advanced.generateId({ model })
-              //   : data.id || generateId(),
-            };
-
-      const fields = schema[model].fields;
-      for (const field in fields) {
+  const transformInput = (
+    data: Record<string, any>,
+    model: string,
+    action: "update" | "create",
+  ) =>
+    Object.keys(schema[model].fields).reduce(
+      (acc, field) => {
         const value = data[field];
-        if (value === undefined && !fields[field].defaultValue) {
-          continue;
-        }
-        transformedData[fields[field].fieldName || field] = withApplyDefault(
+        if (value === undefined && !schema[model].fields[field].defaultValue)
+          return acc;
+        acc[schema[model].fields[field].fieldName || field] = withApplyDefault(
           value,
-          fields[field],
+          schema[model].fields[field],
           action,
         );
-      }
-      return transformedData;
-    },
-    transformOutput(
-      data: Record<string, any>,
-      model: string,
-      select: string[] = [],
-    ) {
-      if (!data) return null;
-      const transformedData: Record<string, any> =
-        data.id && (select.length === 0 || select.includes("id"))
-          ? { id: data.id }
-          : {};
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
-      const tableSchema = schema[model].fields;
+  const transformOutput = (
+    data: Record<string, any>,
+    model: string,
+    select: string[] = [],
+  ) => {
+    if (!data) return null;
+    const out: Record<string, any> =
+      data.id && (!select.length || select.includes("id"))
+        ? { id: data.id }
+        : {};
 
-      for (const key in tableSchema) {
-        if (select.length && !select.includes(key)) {
-          continue;
-        }
-        const field = tableSchema[key];
-        if (field) {
-          transformedData[key] = data[field.fieldName || key];
-        }
+    for (const [key, config] of Object.entries(schema[model].fields)) {
+      if (select.length && !select.includes(key)) continue;
+      out[key] = data[config.fieldName || key];
+    }
+    return out as any;
+  };
+
+  const transformSelect = (select: string[], model: string, e: any) => {
+    let clause = select.length
+      ? Object.fromEntries(select.map((field) => [field, true]))
+      : e[model]["*"];
+    const refField = Object.keys(schema[schema[model].modelName].fields).find(
+      (key) => schema[schema[model].modelName].fields[key]?.references,
+    );
+    if (refField)
+      clause = { ...clause, [refField]: { ...e[model][refField]["*"] } };
+    return [clause, refField];
+  };
+  const convertWhereClause = (
+    where: Where[],
+    model: string,
+    e: any,
+    obj: any,
+  ) =>
+    where.map((clause) => {
+      const { field: _field, value, operator } = clause;
+      const field = getField(model, _field);
+      const type = getType(model, _field);
+      switch (operator) {
+        case "eq":
+          if (type === "id") {
+            return e.op(obj[field], "=", e.uuid(value));
+          }
+          if (type == "reference") {
+            return e.op(obj[field].id, "=", e.uuid(value));
+          }
+          return e.op(obj, "=", value);
+        case "in":
+          if (type === "id") {
+            return e.op(obj[field], "in", e.uuid(value));
+          }
+          if (Array.isArray(value)) {
+            return e.op(
+              obj[field],
+              "in",
+              e.array_unpack(e.literal(e.array(e.str), value)),
+            );
+          }
+          return e.op(obj[field], "in", value);
+        case "contains":
+          if (type === "id") {
+            return e.op(obj[field], "ilike", e.uuid(value));
+          }
+          if (Array.isArray(value)) {
+            return e.op(
+              obj[field],
+              "ilike",
+              e.array_unpack(e.literal(e.array(e.str), value)),
+            );
+          }
+          return e.op(obj[field], "ilike", value);
+        case "starts_with":
+          return e.op(obj[field], "ilike", `${value}%`);
+        case "ends_with":
+          return e.op(obj[field], "ilike", `%${value}`);
+        default:
+          if (type == "id") {
+            return e.op(obj.id, "=", e.uuid(value));
+          }
+          if (type == "reference") {
+            return e.op(obj[field].id, "=", e.uuid(value));
+          }
+          return e.op(obj[field], "=", value);
       }
-      return transformedData as any;
-    },
-    convertWhereClause(where: Where[], model: string, e: any, obj: any) {
-      return where.map((clause) => {
-        const { field: _field, value, operator } = clause;
-        const field = getField(model, _field);
-        const type = getType(model, _field);
-        switch (operator) {
-          case "eq":
-            return e.op(obj.id, "=", value);
-          case "in":
-            if (type === "id") {
-              return e.op(obj[field], "in", e.uuid(value));
-            }
-            if (Array.isArray(value)) {
-              return e.op(
-                obj[field],
-                "in",
-                e.array_unpack(e.literal(e.array(e.str), value)),
-              );
-            }
-            return e.op(obj[field], "in", value);
-          case "contains":
-            if (type === "id") {
-              return e.op(obj[field], "ilike", e.uuid(value));
-            }
-            if (Array.isArray(value)) {
-              return e.op(
-                obj[field],
-                "ilike",
-                e.array_unpack(e.literal(e.array(e.str), value)),
-              );
-            }
-            return e.op(obj[field], "ilike", value);
-          case "starts_with":
-            return e.op(obj[field], "ilike", `${value}%`);
-          case "ends_with":
-            return e.op(obj[field], "ilike", `%${value}`);
-          default:
-            if (type == "id") {
-              return e.op(obj.id, "=", e.uuid(value));
-            }
-            if (type == "reference") {
-              return e.op(obj[field].id, "=", e.uuid(value));
-            }
-            if (value) {
-              return e.op(obj[field], "=", value);
-            } else {
-              return e.op(obj[field], "=", value);
-            }
-        }
-      });
-    },
-    transformSelect,
+    });
+
+  return {
+    convertWhereClause,
+    transformInput,
+    transformOutput,
     getField,
-    getSchema,
-    getSchemaTypes,
+    getType,
+    transformSelect,
   };
 };
 
 export function gelAdapter(db: Client, e: any) {
-  if (!db) {
-    throw new Error("Gel adapter requires a gel client");
-  }
-
   return (options: BetterAuthOptions = {}): Adapter => {
     const {
       transformInput,
-      getSchema,
       transformOutput,
-      getField,
       convertWhereClause,
-      getSchemaTypes,
+      transformSelect,
     } = createTransform(options);
 
     const adapter: Adapter = {
       id: "gel",
 
-      async create({ model, data, select }) {
-        const schema = getSchemaTypes(model);
+      async create({ model, data, select = [] }) {
+        const modelSchema = getAuthTables(options)[model].fields;
+        const transformed = transformInput(data, model, "create");
+        let [selectClause, refField] = transformSelect(select, model, e);
 
-        let transformed = transformInput(data, model, "create");
+        if (refField && modelSchema[refField].references) {
+          transformed[refField] = e.select(
+            e[modelSchema[refField].references.model],
+            () => ({
+              filter_single: { id: transformed[refField] },
+            }),
+          );
+        }
 
-        Object.keys(transformed).forEach((key) => {
-          const field = schema[key];
-
-          if (field?.references) {
-            const refModel = field.references.model;
-
-            transformed[key] = e.select(e[refModel], () => ({
-              filter_single: { id: transformed[key] },
-            }));
-          }
-        });
-
-        const insertQuery = e.insert(e[model], transformed);
-
-        const query = e.select(insertQuery, () => ({
-          ...e[model]["*"],
-        }));
-
-        const result = await query.run(db);
-        return transformOutput(result, model);
+        const result = await e
+          .select(e.insert(e[model], transformed), () => selectClause)
+          .run(db);
+        if (refField) result[refField] = result[refField]?.id;
+        return transformOutput(result, model, select);
       },
 
       async findOne({ model, where, select = [] }) {
-        const schema = getSchemaTypes(model);
+        let [selectClause, refField] = transformSelect(select, model, e);
 
-        let selectClause =
-          select.length > 0
-            ? Object.fromEntries(select.map((field) => [field, true]))
-            : e[model]["*"];
-
-        const referenceField = Object.keys(schema).find(
-          (key) => schema[key]?.references,
-        );
-
-        if (referenceField) {
-          selectClause = {
+        const result = await e
+          .select(e[model], (obj: any) => ({
             ...selectClause,
-            [referenceField]: { ...e[model][referenceField]["*"] },
-          };
-        }
-        const query = e.select(e[model], (obj: any) => {
-          const whereclause = convertWhereClause(where ?? [], model, e, obj);
-          return {
-            ...selectClause,
-            filter_single: where ? whereclause[0] : undefined,
-          };
-        });
-
-        const result = await query.run(db);
-
-        if (referenceField) {
-          result[referenceField] = result[referenceField]?.id;
-        }
-
+            filter_single: where && convertWhereClause(where, model, e, obj)[0],
+          }))
+          .run(db);
+        if (refField) result[refField] = result[refField]?.id;
         return transformOutput(result, model, select);
       },
 
       async findMany({ model, where, limit, offset, sortBy }) {
-        const query = e.select(e[model], (obj: any) => {
-          const whereclause = convertWhereClause(where ?? [], model, e, obj);
-          return {
+        const results = await e
+          .select(e[model], (obj: any) => ({
             ...obj["*"],
-            limit: limit,
-            offset: offset,
-            filter: where ? whereclause[0] : undefined,
-
-            order_by: sortBy?.field
-              ? {
-                  expression: obj[sortBy.field],
-                  direction: e[sortBy.direction.toUpperCase()],
-                }
-              : undefined,
-          };
-        });
-        const results = await query.run(db);
-
+            limit,
+            offset,
+            filter: where && convertWhereClause(where, model, e, obj)[0],
+            order_by: sortBy?.field && {
+              expression: obj[sortBy.field],
+              direction: e[sortBy.direction.toUpperCase()],
+            },
+          }))
+          .run(db);
         return results.map((record: any) => transformOutput(record, model));
       },
 
       async delete({ model, where }) {
-        const query = e.delete(e[model], (obj: any) => {
-          const whereclause = convertWhereClause(where, model, e, obj);
-          return {
+        const result = await e
+          .delete(e[model], (obj: any) => ({
             ...obj["*"],
-            filter_single: where ? whereclause[0] : undefined,
-          };
-        });
-        const results = await query.run(db);
-        return transformOutput(results, model);
+            filter_single: where && convertWhereClause(where, model, e, obj)[0],
+          }))
+          .run(db);
+        return transformOutput(result, model);
       },
-      async deleteMany({ model, where }) {
-        const query = e.delete(e[model], (obj: any) => {
-          const whereclause = convertWhereClause(where ?? [], model, e, obj);
-          return {
-            ...obj["*"],
-            filter: where ? whereclause[0] : undefined,
-          };
-        });
-        const results = await query.run(db);
 
+      async deleteMany({ model, where }) {
+        const results = await e
+          .delete(e[model], (obj: any) => ({
+            ...obj["*"],
+            filter: where && convertWhereClause(where, model, e, obj)[0],
+          }))
+          .run(db);
         return results.map((record: any) => transformOutput(record, model));
       },
 
       async count({ model, where }) {
-        const query = e.count(
-          e.select(e.user, (obj: any) => {
-            const whereclause = convertWhereClause(where ?? [], model, e, obj);
-            return {
-              filter: where ? whereclause[0] : undefined,
-            };
-          }),
-        );
-
-        const results = await query.run(db);
-
-        return results;
+        return await e
+          .count(
+            e.select(e[model], (obj: any) => ({
+              filter: where && convertWhereClause(where, model, e, obj)[0],
+            })),
+          )
+          .run(db);
       },
 
       async update({ model, where, update }) {
         const query = e.select(
-          e.update(e[model], (obj: any) => {
-            const whereclause = convertWhereClause(where, model, e, obj);
-            return {
-              filter_single: where ? whereclause[0] : undefined,
-              set: update,
-            };
-          }),
-          (obj: any) => ({
-            ...obj["*"],
-          }),
+          e.update(e[model], (obj: any) => ({
+            filter_single: where && convertWhereClause(where, model, e, obj)[0],
+            set: update,
+          })),
+          (obj: any) => ({ ...obj["*"] }),
         );
         const result = await query.run(db);
         return transformOutput(result, model);
       },
+
       async updateMany({ model, where, update }) {
         const query = e.update(e[model], (obj: any) => {
           const whereclause = convertWhereClause(where, model, e, obj);
@@ -356,8 +252,8 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async createSchema(
-        options: BetterAuthOptions,
-        file: string = "./dbschema/generated.esdl",
+        opts: BetterAuthOptions,
+        file: string = "./dbschema/generated.gelschema",
       ) {
         const typeMap: Record<string, string> = {
           string: "str",
@@ -365,34 +261,21 @@ export function gelAdapter(db: Client, e: any) {
           boolean: "bool",
           date: "datetime",
         };
-
-        const schemaString = Object.values(getAuthTables(options))
+        const schemaString = Object.values(getAuthTables(opts))
           .map(({ modelName, fields }) => {
             const fieldsString = Object.entries(fields)
-              .map(([fieldName, { type, required, references }]) => {
-                const fieldType = Array.isArray(type)
-                  ? `array<${typeMap[type[0]]}>`
-                  : typeMap[type];
-                return `  ${required ? "required " : ""}${fieldName}: ${references?.model || fieldType};`;
-              })
+              .map(
+                ([fieldName, { type, required, references }]) =>
+                  `  ${required ? "required " : ""}${fieldName}: ${references?.model || (Array.isArray(type) ? `array<${typeMap[type[0]]}>` : typeMap[type])};`,
+              )
               .join("\n");
             return `type ${modelName} {\n${fieldsString}\n}`;
           })
           .join("\n\n");
 
         const filePath = join(process.cwd(), file);
-
-        if (typeof Bun !== "undefined") {
-          await Bun.write(filePath, schemaString);
-        } else {
-          await writeFile(filePath, schemaString);
-        }
-
-        return {
-          code: schemaString,
-          path: filePath,
-          overwrite: true,
-        };
+        await writeFile(filePath, schemaString);
+        return { code: schemaString, path: filePath, overwrite: true };
       },
     };
     return adapter;
