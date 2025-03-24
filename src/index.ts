@@ -28,14 +28,13 @@ const createTransform = (options: BetterAuthOptions) => {
 
     for (const field in fields) {
       const value = data[field];
-      if (value === undefined && !fields[field].defaultValue) {
-        continue;
+      if (value || fields[field].defaultValue) {
+        transformedData[fields[field].fieldName || field] = withApplyDefault(
+          value,
+          fields[field],
+          action,
+        );
       }
-      transformedData[fields[field].fieldName || field] = withApplyDefault(
-        value,
-        fields[field],
-        action,
-      );
     }
     return transformedData;
   };
@@ -52,8 +51,9 @@ const createTransform = (options: BetterAuthOptions) => {
         : {};
 
     for (const [key, config] of Object.entries(schema[model].fields)) {
-      if (select.length && !select.includes(key)) continue;
-      out[key] = data[config.fieldName || key];
+      if (!select.length || select.includes(key)) {
+        out[key] = data[config.fieldName || key];
+      }
     }
     return out as any;
   };
@@ -62,13 +62,17 @@ const createTransform = (options: BetterAuthOptions) => {
     let clause = select.length
       ? Object.fromEntries(select.map((field) => [field, true]))
       : e[model]["*"];
-    const refField = Object.keys(schema[schema[model].modelName].fields).find(
-      (key) => schema[schema[model].modelName].fields[key]?.references,
-    );
-    if (refField)
-      clause = { ...clause, [refField]: { ...e[model][refField]["*"] } };
-    return [clause, refField];
+    const referenceField = Object.keys(
+      schema[schema[model].modelName].fields,
+    ).find((key) => schema[schema[model].modelName].fields[key]?.references);
+
+    if (referenceField) {
+      clause[referenceField] = e[model][referenceField]["*"];
+    }
+    return [clause, referenceField];
   };
+
+  // TODO: just return one value that works. Even complex ones like e.op(e.op(), "and", e.op())
   const convertWhereClause = (
     where: Where[],
     model: string,
@@ -131,8 +135,6 @@ const createTransform = (options: BetterAuthOptions) => {
     convertWhereClause,
     transformInput,
     transformOutput,
-    getField,
-    getType,
     transformSelect,
   };
 };
@@ -152,81 +154,78 @@ export function gelAdapter(db: Client, e: any) {
       async create({ model, data, select = [] }) {
         const modelSchema = getAuthTables(options)[model].fields;
         const transformed = transformInput(data, model, "create");
-        let [selectClause, refField] = transformSelect(select, model, e);
+        let [selectClause, referenceField] = transformSelect(select, model, e);
 
-        if (refField && modelSchema[refField].references) {
-          transformed[refField] = e.select(
-            e[modelSchema[refField].references.model],
-            () => ({
-              filter_single: { id: transformed[refField] },
-            }),
+        if (referenceField && modelSchema[referenceField].references) {
+          transformed[referenceField] = e.select(
+            e[modelSchema[referenceField].references.model],
+            () => ({ filter_single: { id: transformed[referenceField] } }),
           );
         }
 
         const result = await e
           .select(e.insert(e[model], transformed), () => selectClause)
           .run(db);
-        if (refField) result[refField] = result[refField]?.id;
+
+        if (referenceField) result[referenceField] = result[referenceField]?.id;
         return transformOutput(result, model, select);
       },
 
       async findOne({ model, where, select = [] }) {
-        let [selectClause, refField] = transformSelect(select, model, e);
+        let [selectClause, referenceField] = transformSelect(select, model, e);
 
-        const result = await e
-          .select(e[model], (obj: any) => ({
-            ...selectClause,
-            filter_single: where && convertWhereClause(where, model, e, obj)[0],
-          }))
-          .run(db);
-        if (refField) result[refField] = result[refField]?.id;
+        const query = e.select(e[model], (obj: any) => ({
+          ...selectClause,
+          filter_single: where && convertWhereClause(where, model, e, obj)[0],
+        }));
+        const result = await query.run(db);
+
+        if (referenceField) result[referenceField] = result[referenceField]?.id;
         return transformOutput(result, model, select);
       },
 
       async findMany({ model, where, limit, offset, sortBy }) {
-        const results = await e
-          .select(e[model], (obj: any) => ({
-            ...obj["*"],
-            limit,
-            offset,
-            filter: where && convertWhereClause(where, model, e, obj)[0],
-            order_by: sortBy?.field && {
-              expression: obj[sortBy.field],
-              direction: e[sortBy.direction.toUpperCase()],
-            },
-          }))
-          .run(db);
+        const query = e.select(e[model], (obj: any) => ({
+          ...obj["*"],
+          limit,
+          offset,
+          filter: where && convertWhereClause(where, model, e, obj)[0],
+          order_by: sortBy?.field && {
+            expression: obj[sortBy.field],
+            direction: e[sortBy.direction.toUpperCase()],
+          },
+        }));
+
+        const results = await query.run(db);
         return results.map((record: any) => transformOutput(record, model));
       },
 
       async delete({ model, where }) {
-        const result = await e
-          .delete(e[model], (obj: any) => ({
-            ...obj["*"],
-            filter_single: where && convertWhereClause(where, model, e, obj)[0],
-          }))
-          .run(db);
+        const query = e.delete(e[model], (obj: any) => ({
+          ...obj["*"],
+          filter_single: where && convertWhereClause(where, model, e, obj)[0],
+        }));
+        const result = await query.run(db);
         return transformOutput(result, model);
       },
 
       async deleteMany({ model, where }) {
-        const results = await e
-          .delete(e[model], (obj: any) => ({
-            ...obj["*"],
-            filter: where && convertWhereClause(where, model, e, obj)[0],
-          }))
-          .run(db);
+        const query = e.delete(e[model], (obj: any) => ({
+          ...obj["*"],
+          filter: where && convertWhereClause(where, model, e, obj)[0],
+        }));
+        const results = await query.run(db);
+
         return results.map((record: any) => transformOutput(record, model));
       },
 
       async count({ model, where }) {
-        return await e
-          .count(
-            e.select(e[model], (obj: any) => ({
-              filter: where && convertWhereClause(where, model, e, obj)[0],
-            })),
-          )
-          .run(db);
+        const query = e.count(
+          e.select(e[model], (obj: any) => ({
+            filter: where && convertWhereClause(where, model, e, obj)[0],
+          })),
+        );
+        return await query.run(db);
       },
 
       async update({ model, where, update }) {
@@ -235,7 +234,7 @@ export function gelAdapter(db: Client, e: any) {
             filter_single: where && convertWhereClause(where, model, e, obj)[0],
             set: update,
           })),
-          (obj: any) => ({ ...obj["*"] }),
+          (obj: any) => obj["*"],
         );
         const result = await query.run(db);
         return transformOutput(result, model);
