@@ -1,9 +1,9 @@
 import { getAuthTables } from "better-auth/db";
 import type { Adapter, BetterAuthOptions, Where } from "better-auth/types";
-import type { Client } from "gel";
-import { withApplyDefault } from "./utils";
 import { writeFile } from "fs/promises";
+import type { Client } from "gel";
 import { join } from "path";
+import { withApplyDefault } from "./utils";
 
 const createTransform = (options: BetterAuthOptions) => {
   const schema = getAuthTables(options);
@@ -17,6 +17,10 @@ const createTransform = (options: BetterAuthOptions) => {
     }
     const f = schema[model]?.fields[field];
     return f.references?.field === "id" ? "reference" : f.type;
+  };
+
+  const getModelName = (model: string) => {
+    return schema[model].modelName !== model ? schema[model].modelName  : model;
   };
 
   return {
@@ -103,26 +107,35 @@ const createTransform = (options: BetterAuthOptions) => {
     },
 
     transformSelect(select: string[], model: string, e: any) {
-      const fields = schema[schema[model].modelName].fields;
+      const fields = schema[model].fields;
+      const modelName = schema[model].modelName;
+
       const clause = select.length
         ? Object.fromEntries(select.map((f) => [f, true]))
-        : e[model]["*"];
+        : e[modelName]["*"];
       const referenceField = Object.keys(fields).find(
         (key) => fields[key]?.references,
       );
       if (referenceField) {
-        clause[referenceField] = e[model][referenceField]["*"];
+        clause[referenceField] = e[modelName][referenceField]["*"];
       }
       return [clause, referenceField];
     },
     getField,
     getType,
+    getModelName
   };
 };
 
-export function gelAdapter(db: Client, e: any) {
+type GelAdapterOptions = {
+  moduleName?: string;
+};
+
+export function gelAdapter(db: Client, e: any, options: GelAdapterOptions = {}) {
+  const qb = options?.moduleName ? e[options.moduleName] : e;
+
   return (options: BetterAuthOptions = {}) => {
-    const { transformInput, transformOutput, convertWhere, transformSelect } =
+    const { transformInput, transformOutput, convertWhere, transformSelect, getModelName } =
       createTransform(options);
 
     return {
@@ -130,24 +143,27 @@ export function gelAdapter(db: Client, e: any) {
       async create({ model, data, select = [] }) {
         const modelSchema = getAuthTables(options)[model].fields;
         const transformed = transformInput(data, model, "create");
-        let [selectClause, referenceField] = transformSelect(select, model, e);
+        let [selectClause, referenceField] = transformSelect(select, model, qb);
 
         const ref = modelSchema[referenceField]?.references;
         if (ref) {
-          transformed[referenceField] = e.select(e[ref.model], {
+          transformed[referenceField] = e.select(qb[ref.model], {
             filter_single: { id: transformed[referenceField] },
           });
         }
 
-        const query = e.select(e.insert(e[model], transformed), selectClause);
+        const modelName = getModelName(model);
+
+        const query = e.select(e.insert(qb[modelName], transformed), selectClause);
         const result = await query.run(db);
         if (referenceField) result[referenceField] = result[referenceField]?.id;
         return transformOutput(result, model, select);
       },
 
       async findOne({ model, where, select = [] }) {
-        let [selectClause, referenceField] = transformSelect(select, model, e);
-        const query = e.select(e[model], (obj: any) => ({
+        let [selectClause, referenceField] = transformSelect(select, model, qb);
+        const modelName = getModelName(model);
+        const query = e.select(qb[modelName], (obj: any) => ({
           ...selectClause,
           filter_single: convertWhere(where, model, e, obj),
         }));
@@ -158,7 +174,8 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async findMany({ model, where, limit, offset, sortBy }) {
-        const query = e.select(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const query = e.select(qb[modelName], (obj: any) => ({
           ...obj["*"],
           limit,
           offset,
@@ -173,7 +190,8 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async delete({ model, where }) {
-        const query = e.delete(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const query = e.delete(qb[modelName], (obj: any) => ({
           ...obj["*"],
           filter_single: convertWhere(where, model, e, obj),
         }));
@@ -182,7 +200,8 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async deleteMany({ model, where }) {
-        const query = e.delete(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const query = e.delete(qb[modelName], (obj: any) => ({
           ...obj["*"],
           filter: convertWhere(where, model, e, obj),
         }));
@@ -191,14 +210,16 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async count({ model, where }) {
-        const query = e.select(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const query = e.select(qb[modelName], (obj: any) => ({
           filter: convertWhere(where, model, e, obj),
         }));
         return await e.count(query.run(db));
       },
 
       async update({ model, where, update }) {
-        const updateQuery = e.update(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const updateQuery = e.update(qb[modelName], (obj: any) => ({
           filter_single: convertWhere(where, model, e, obj),
           set: update,
         }));
@@ -208,7 +229,8 @@ export function gelAdapter(db: Client, e: any) {
       },
 
       async updateMany({ model, where, update }) {
-        const query = e.update(e[model], (obj: any) => ({
+        const modelName = getModelName(model);
+        const query = e.update(qb[modelName], (obj: any) => ({
           filter: convertWhere(where, model, e, obj),
           set: update,
         }));
