@@ -2,16 +2,23 @@
 
 ## Status
 
-Will probably work, keep in mind it's early.
-Passing all the test.
+It works. Create an issue if something goes wrong.
 
 TODO:
 
-- Try it out to see if plugins, and API's will work as intended.
+- Verify the API user end API's will work, plugins etc. Though they should work.
 
 ## Installation
 
-Package exists now https://npmjs.com/package/gel-better-auth
+Package exists at https://npmjs.com/package/gel-better-auth
+
+```bash
+npm i gel-better-auth
+# or
+pnpm add gel-better-auth
+# or
+bun add gel-better-auth
+```
 
 ## Usage
 
