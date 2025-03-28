@@ -1,6 +1,6 @@
 {
   "name": "gel-better-auth",
-  "version": "0.1.2",
+  "version": "0.1.22",
   "author": "Emil Nordgård",
   "description": "An better-auth database adapter for gel/edgedb",
   "keywords": [
@@ -38,6 +38,6 @@
     "gel": "^2.0.0"
   },
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com"
   }
 }
