@@ -45,5 +45,5 @@ jobs:
       - run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
           bun publish
-        env:
-          BUN_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        # env:
+        #   BUN_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
