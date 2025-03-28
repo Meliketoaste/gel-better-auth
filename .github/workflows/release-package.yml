@@ -9,25 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: geldata/setup-gel@v1
+      - run: gel --version
 
-      - name: Install Gel
-        uses: geldata/setup-gel@6763b6de72782d9c2e5ecc1095986a1c707da68f
-        with:
-          instance-name: test
-          server-version: ${{ matrix.gel-version }}
-          cli-version: ${{ matrix.gel-version == 'nightly' && 'nightly' || 'stable' }}
-
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
           registry-url: "https://npm.pkg.github.com/"
-      - run: |
-          bun add ${{ github.workspace }}/edgedb-cli.tar.gz
-          bun install 
-          bun gel project init --non-interactive
-          bun gel migration create
-          bun gel migrate
-      - run: bun test
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate EdgeQL-JS
+        run: bunx @gel/generate edgeql-js
+
+      - name: Run tests
+        run: bun test
 
   publish-gpr:
     needs: build
