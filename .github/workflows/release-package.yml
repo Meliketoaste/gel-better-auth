@@ -22,7 +22,8 @@ jobs:
           bun-version: latest
           registry-url: "https://npm.pkg.github.com/"
       - run: |
-          bun install --frozen-lockfile
+          bun add ${{ github.workspace }}/edgedb-cli.tar.gz
+          bun install 
           bun gel project init --non-interactive
           bun gel migration create
           bun gel migrate
