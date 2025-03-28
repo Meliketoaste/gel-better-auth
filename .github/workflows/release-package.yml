@@ -14,6 +14,9 @@ jobs:
           bun-version: latest
           registry-url: "https://npm.pkg.github.com/"
       - run: bun install --frozen-lockfile
+      - run: bunx gel project init
+      - run: bunx gel migration create
+      - run: bunx gel migrate
       - run: bun test
 
   publish-gpr:
