@@ -36,5 +36,8 @@
   },
   "dependencies": {
     "gel": "^2.0.0"
+  },
+  "publishConfig": {
+    "@meliketoaste:registry": "https://npm.pkg.github.com"
   }
 }
