@@ -27,7 +27,7 @@ jobs:
       - name: Run tests
         run: bun test
 
-  publish-gpr:
+  publish-package:
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -44,7 +44,9 @@ jobs:
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to GitHub
-        run: bun publish --registry=https://npm.pkg.github.com --tag=latest
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # I dont get this shit
+      #
+      # - name: Publish to GitHub
+      #   run: bun publish --registry=https://npm.pkg.github.com --tag=latest
+      #   env:
+      #     NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
