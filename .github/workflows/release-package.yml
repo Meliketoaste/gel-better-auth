@@ -9,14 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Gel
+        uses: geldata/setup-gel@6763b6de72782d9c2e5ecc1095986a1c707da68f
+        with:
+          instance-name: test
+          server-version: ${{ matrix.gel-version }}
+          cli-version: ${{ matrix.gel-version == 'nightly' && 'nightly' || 'stable' }}
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
           registry-url: "https://npm.pkg.github.com/"
-      - run: bun install --frozen-lockfile
-      - run: bunx gel project init
-      - run: bunx gel migration create
-      - run: bunx gel migrate
+      - run: |
+          bun install --frozen-lockfile
+          bun gel project init --non-interactive
+          bun gel migration create
+          bun gel migrate
       - run: bun test
 
   publish-gpr:
