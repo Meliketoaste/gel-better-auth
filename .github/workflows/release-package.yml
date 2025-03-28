@@ -40,6 +40,7 @@ jobs:
           bun-version: latest
           registry-url: "https://npm.pkg.github.com/"
       - run: bun install
-      - run: bun publish
+      - run: bunx npm login
+      - run: bun publish --access public
         env:
           BUN_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
