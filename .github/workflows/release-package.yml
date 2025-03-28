@@ -38,12 +38,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-          registry-url: "https://npm.pkg.github.com/"
-          scope: "@meliketoaste"
-      - run: bun install
-      - run: bunx npm login
-      - run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
-          bun publish
-        # env:
-        #   BUN_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Publish to NPM
+        run: bun publish --registry=https://registry.npmjs.org --tag=latest
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub
+        run: bun publish --registry=https://npm.pkg.github.com --tag=latest
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
