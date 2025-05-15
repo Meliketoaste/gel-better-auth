@@ -5,7 +5,7 @@
 It works. For the most part.
 
 ### Issues
-I was using the query builder in hopes of it making the code simpler. But i am not quite sure if it was succesfull or not. It lead to the user sort of having an chicken and egg problem. Where you need an query builder to do the schema generation. And that shouldnt be neccesary. There was some issues with plugins which i deffinfetly can fix. But im tired of thinking about web in general. So feel free to fork or ask questions. But im probably not going to bother to fix it. If you were to make your own better adapter please avoid the query builder lol. 
+I was using the query builder in hopes of it making the code simpler. But i am not quite sure if it was succesfull or not. It lead to the user sort of having an chicken and egg problem. Where you need an query builder to do the schema generation so you need a schema for generating a schema. And that shouldnt be neccesary. There was some issues with plugins which i deffinfetly can fix. But im tired of thinking about web in general. So feel free to fork or ask questions. But im probably not going to bother to fix it. If you were to make your own better adapter please avoid the query builder lol. 
 
 TODO:
 
