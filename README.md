@@ -9,7 +9,7 @@ I was using the query builder in hopes of it making the code simpler. But i am n
 
 ### Update
 
-I will refer you to use github.com/carere/gel-better-auth
+I will refer you to use https://github.com/carere/gel-better-auth
 
 ## Installation
 
