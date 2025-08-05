@@ -1,5 +1,6 @@
 # Gel/EdgeDB Adapter for Better-Auth
 
+
 ## Status
 
 It works. For the most part.
@@ -9,7 +10,7 @@ I was using the query builder in hopes of it making the code simpler. But i am n
 
 ### Update
 
-I will refer you to use https://github.com/carere/gel-better-auth
+I will refer you to use https://github.com/carere/gel-better-auth instead of this.
 
 ## Installation
 
